@@ -1,0 +1,201 @@
+<?xml version="1.0"?>
+<button backcol="none" display="both" icon_size="large" textcol="none" type="menu_button">
+	<label>GlobalClock</label>
+	<tip>Show notification with date and time</tip>
+	<function type="normal">
+		<instruction>@evalalways:clocks=Concat(2, $glob:Script.GlobalClock.Date,val($glob:Script.GlobalClock.LiveTime) ? $glob:Script.GlobalClock.LiveTime : $glob:Script.GlobalClock.Time,&quot; &quot;)</instruction>
+		<instruction>@label:original_label+(Len(clocks)&gt;0 ?(&quot; &lt;b&gt;&quot;+ clocks+&quot;&lt;/b&gt;&quot;) :&quot;&quot;)</instruction>
+		<instruction>GlobalClock NOTIFY</instruction>
+	</function>
+	<button backcol="none" display="label" field_type="label" size="full" textcol="none">
+		<label>=&quot;GlobalClock &quot;+($glob:Script.GlobalClock.Date as str)+( val($glob:Script.GlobalClock.LiveTime) ? &quot; &quot;+$glob:Script.GlobalClock.LiveTime : (val($glob:Script.GlobalClock.Time) ?  &quot; &quot;+$glob:Script.GlobalClock.Time : &quot;&quot;)  )</label>
+		<icon1>#label</icon1>
+		<function type="normal">
+			<instruction>Set LABEL</instruction>
+		</function>
+	</button>
+	<button backcol="none" display="label" textcol="none" type="menu_button">
+		<label>Date Clock:</label>
+		<tip>Toggles Date Clock On/Off</tip>
+		<icon1>#newbuttonmenu</icon1>
+		<function type="normal">
+			<instruction>@Toggle:if $glob:Script.GlobalClock.Date</instruction>
+			<instruction>@label: original_label+&quot;     &lt;b&gt;&quot;+(Val($glob:Script.GlobalClock.Date) ? $glob:Script.GlobalClock.Date: &quot;Off&quot;)+&quot;&lt;/b&gt;&quot; </instruction>
+			<instruction>GlobalClock DATECLOCK=TOGGLE</instruction>
+		</function>
+		<button backcol="none" display="label" textcol="none">
+			<label>Stop</label>
+			<icon1>#newcommand</icon1>
+			<function type="normal">
+				<instruction>@Toggle:if $glob:Script.GlobalClock.Date</instruction>
+				<instruction>@toggle:invert</instruction>
+				<instruction>GlobalClock DATECLOCK=OFF</instruction>
+			</function>
+		</button>
+		<button backcol="none" display="label" textcol="none">
+			<label>Start</label>
+			<icon1>#newcommand</icon1>
+			<function type="normal">
+				<instruction>@Toggle:if $glob:Script.GlobalClock.Date</instruction>
+				<instruction>GlobalClock DATECLOCK=ON</instruction>
+			</function>
+		</button>
+		<button backcol="none" display="label" textcol="none">
+			<label>Toggle</label>
+			<icon1>#newcommand</icon1>
+			<function type="normal">
+				<instruction>GlobalClock DATECLOCK=TOGGLE</instruction>
+			</function>
+		</button>
+	</button>
+	<button backcol="none" display="label" textcol="none" type="menu_button">
+		<label>Time Clock:</label>
+		<tip>Toggle Time Clock On/Off</tip>
+		<icon1>#newbuttonmenu</icon1>
+		<function type="normal">
+			<instruction>@Toggle:if $glob:Script.GlobalClock.Time</instruction>
+			<instruction>@label: original_label+&quot;     &lt;b&gt;&quot;+(Val($glob:Script.GlobalClock.Time) ? $glob:Script.GlobalClock.Time: &quot;Off&quot;)+&quot;&lt;/b&gt;&quot; </instruction>
+			<instruction>GlobalClock TIMECLOCK=TOGGLE</instruction>
+		</function>
+		<button backcol="none" display="label" textcol="none">
+			<label>Stop</label>
+			<icon1>#newcommand</icon1>
+			<function type="normal">
+				<instruction>@Toggle:if $glob:Script.GlobalClock.Time</instruction>
+				<instruction>@toggle:invert</instruction>
+				<instruction>GlobalClock TIMECLOCK=OFF</instruction>
+			</function>
+		</button>
+		<button backcol="none" display="label" textcol="none">
+			<label>Start</label>
+			<icon1>#newcommand</icon1>
+			<function type="normal">
+				<instruction>@Toggle:if $glob:Script.GlobalClock.Time</instruction>
+				<instruction>GlobalClock TIMECLOCK=ON</instruction>
+			</function>
+		</button>
+		<button backcol="none" display="label" textcol="none">
+			<label>Toggle</label>
+			<icon1>#newcommand</icon1>
+			<function type="normal">
+				<instruction>GlobalClock TIMECLOCK=TOGGLE</instruction>
+			</function>
+		</button>
+	</button>
+	<button backcol="none" display="label" textcol="none" type="menu_button">
+		<label>Live Time:</label>
+		<tip>Toggle Live Time On/Off</tip>
+		<icon1>#newbuttonmenu</icon1>
+		<function type="normal">
+			<instruction>@Toggle:if $glob:Script.GlobalClock.LiveTime</instruction>
+			<instruction>@label: original_label+&quot;       &lt;b&gt;&quot;+(Val($glob:Script.GlobalClock.LiveTime) ? $glob:Script.GlobalClock.LiveTime: &quot;Off&quot;)+&quot;&lt;/b&gt;&quot; </instruction>
+			<instruction>GlobalClock LIVETIME=TOGGLE</instruction>
+		</function>
+		<button backcol="none" display="label" textcol="none">
+			<label>Stop</label>
+			<icon1>#newcommand</icon1>
+			<function type="normal">
+				<instruction>@Toggle:if $glob:Script.GlobalClock.LiveTime</instruction>
+				<instruction>@toggle:invert</instruction>
+				<instruction>GlobalClock LIVETIME=OFF</instruction>
+			</function>
+		</button>
+		<button backcol="none" display="label" textcol="none">
+			<label>Start</label>
+			<icon1>#newcommand</icon1>
+			<function type="normal">
+				<instruction>@Toggle:if $glob:Script.GlobalClock.LiveTime</instruction>
+				<instruction>GlobalClock LIVETIME=ON</instruction>
+			</function>
+		</button>
+		<button backcol="none" display="label" textcol="none">
+			<label>Toggle</label>
+			<icon1>#newcommand</icon1>
+			<function type="normal">
+				<instruction>GlobalClock LIVETIME=TOGGLE</instruction>
+			</function>
+		</button>
+	</button>
+	<button backcol="none" display="label" icon_size="large" textcol="none" timed="yes">
+		<label>Toggle Time Clock/Live Time</label>
+		<tip>Switch between Time Clock and Live Time</tip>
+		<icon1>#newmenu</icon1>
+		<function type="normal">
+			<instruction>@evalalways:time= val($glob:Script.GlobalClock.LiveTime) ? $glob:Script.GlobalClock.LiveTime : $glob:Script.GlobalClock.Time</instruction>
+			<instruction>@label:=Len(time)==0 ? original_label :&quot;Toggle Time:   &lt;b&gt;&quot;+ time+&quot;&lt;/b&gt;&quot;</instruction>
+			<instruction>@if:$glob:Script.GlobalClock.LiveTime</instruction>
+			<instruction>	GlobalClock LIVETIME=OFF TIMECLOCK=ON</instruction>
+			<instruction>@if:else</instruction>
+			<instruction>  	GlobalClock LIVETIME=ON TIMECLOCK=OFF</instruction>
+		</function>
+	</button>
+	<button backcol="none" display="label" separate="yes" textcol="none" type="menu">
+		<label>All Clocks</label>
+		<tip>Start/Stop all Clocks</tip>
+		<icon1>#newmenu</icon1>
+		<button backcol="none" display="label" textcol="none">
+			<label>Stop</label>
+			<icon1>#newcommand</icon1>
+			<function type="normal">
+				<instruction>GlobalClock DATECLOCK=OFF TIMECLOCK=OFF LIVETIME=OFF</instruction>
+			</function>
+		</button>
+		<button backcol="none" display="label" textcol="none">
+			<label>Start</label>
+			<icon1>#newcommand</icon1>
+			<function type="normal">
+				<instruction>GlobalClock DATECLOCK=ON TIMECLOCK=ON LIVETIME=ON</instruction>
+			</function>
+		</button>
+		<button backcol="none" display="label" textcol="none">
+			<label>Toggle</label>
+			<icon1>#newcommand</icon1>
+			<function type="normal">
+				<instruction>GlobalClock DATECLOCK=TOGGLE TIMECLOCK=TOGGLE LIVETIME=TOGGLE</instruction>
+			</function>
+		</button>
+	</button>
+	<button backcol="none" display="label" field_type="label" size="full" textcol="none">
+		<label>=(df=$glob:Script.GlobalClock.DateFormats as str;cnt=Count(df,Chr(10))+( Val(df) ? 1 :0);idx=(0+$glob:Script.GlobalClock.DateFormats.idx) as int; &quot;Date Formats&quot;+ (Len(df)&gt;0 ? (&quot; &quot;+ idx+&quot;/&quot;+cnt) :&quot;&quot; ))</label>
+		<icon1>#label</icon1>
+		<function type="normal">
+			<instruction>Set LABEL</instruction>
+		</function>
+	</button>
+	<button backcol="none" display="label" label_pos="right" separate="yes" textcol="none">
+		<label>Cycle Date Formats</label>
+		<tip>=&quot;&lt;b&gt;Cycle Date Formats &quot;+ idx+&quot;/&quot;+cnt+&quot;&lt;/b&gt;&quot; +Chr(10) + $glob:Script.GlobalClock.DateFormats as str</tip>
+		<icon1>#newcommand</icon1>
+		<function type="normal">
+			<instruction>@evalalways:df=$glob:Script.GlobalClock.DateFormats as str;cnt=Count(df,Chr(10))+( Val(df) ? 1 :0);idx=(0+$glob:Script.GlobalClock.DateFormats.idx) as int; n=idx; while(n&gt;1 &amp;&amp; InStr(df,Chr(10))!=-1){df=Mid(df,InStr(df,Chr(10))+1);n--;} dLabel=Val(!$glob:Script.GlobalClock.Date)?&quot;Dates Off&quot;:(idx==0||Len(df)==0? ($glob:Script.GlobalClock.Date as str) :(InStr(df,Chr(10))!=-1?Left(df,InStr(df,Chr(10))):df))</instruction>
+			<instruction>@label:=return &quot;&lt;b&gt;&quot;+dLabel +&quot;&lt;/b&gt;&quot;;</instruction>
+			<instruction>@if:$glob:Script.GlobalClock.Date</instruction>
+			<instruction>@set glob!:Script.GlobalClock.DateFormats.idx={=(idx+1)&gt;(cnt as int) ? 0: (idx+1)=}</instruction>
+			<instruction>@toggle:update</instruction>
+			<instruction>@if:else</instruction>
+		</function>
+	</button>
+	<button backcol="none" display="label" label_pos="right" separate="yes" textcol="none">
+		<label>Notify</label>
+		<tip>Show notification with date and time</tip>
+		<icon1>#newcommand</icon1>
+		<function type="normal">
+			<instruction>GlobalClock NOTIFY</instruction>
+		</function>
+	</button>
+	<button backcol="none" display="both" label_pos="right" textcol="none" type="menu_button">
+		<label>Configure GlobalClock...</label>
+		<tip>Opens script configuration dialog</tip>
+		<icon1>#script</icon1>
+		<function type="normal">
+			<instruction>Prefs PAGE=scripts:GlobalCLock.js*</instruction>
+		</function>
+		<button backcol="none" display="both" label_pos="right" textcol="none">
+			<label>Edit GlobalClock...</label>
+			<icon1>#script</icon1>
+			<function type="normal">
+				<instruction>Prefs SCRIPTEDIT=&quot;GlobalClock.js*&quot;</instruction>
+			</function>
+		</button>
+	</button>
+</button>
