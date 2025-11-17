@@ -1,0 +1,710 @@
+﻿// GlobalClock
+// (c) 2025 Comrat
+
+// Toolbar clock script for Directory Opus
+// ------------------------------------------------------------
+var dateClockId = 25001;
+var timeClockId = 25002;
+var liveTimeId = 25003;
+var g_date = "Script.GlobalClock.Date";
+var g_time = "Script.GlobalClock.Time";
+var g_liveTime = "Script.GlobalClock.LiveTime";
+var g_dateFormats = "Script.GlobalClock.DateFormats";
+
+// ============================================================
+// Initialization
+// ============================================================
+function OnInit(initData) {
+
+	initData.name = "GlobalClock";
+	initData.version = "1.0";
+	initData.copyright = "(c) 2025 aZtral*EnForceR";
+	//	initData.url = "https://resource.dopus.com/c/buttons-scripts/16";
+	initData.desc = "";
+	initData.default_enable = true;
+	initData.min_version = "13.0";
+	initData.config = DOpus.Create().OrderedMap();
+	initData.config_desc = DOpus.Create().OrderedMap();
+	initData.config_groups = DOpus.Create().OrderedMap();
+	initData.config_group_order = DOpus.NewVector('Time Format', 'Behavior', 'Custom Formatters', 'Startup', 'Logging');
+
+	var nl = "\r\n";
+	// var val = "<:D#dd-MMMM-yyyy@C0:>" + nl +
+	var val = "<:D#dddd, dd-MMMM@C1:>" + nl +
+		"<:D#dddd, d/M@C0:> - Week <:D#ww:>" + nl +
+		"<:D#d. MMMM yyyy@C0:> (Week <:D#ww:>)" + nl +
+		"<:D#dddd@L3@C0:>, <:D#d-MMM@C1:> W<:D#w:>";
+
+
+	var cdfDesc = 'Configure custom date formats here. Text inside <::> is processed by the formatter; everything else is inserted as-is.' + nl +
+		'Each line can include multiple <::> codes, each formatted separately.' + nl +
+		'Use code like D#yyyy-MM-dd for arbitrary output (e.g., 2025-07-16). The optional flag argument is seperated by double semicolons, e.g. <:arg1;;arg2:>' + nl +
+		'Modifiers apply after formatting: <:D#yyyy-MM-dd@ModifierX@ModifierY:>' + nl +
+		'Available modifiers:' + nl +
+		'     @LX  - Limit to X characters (e.g. <:MMMM@L1:> produces "N" for November)' + nl +
+		'     @C0  - Capitalize first word' + nl +
+		'     @C1  - Capitalize all words' + nl +
+		'     @CU  - Uppercase all text' + nl +
+		'' + nl +
+		'When multiple lines are output, use the DOpus Evaluator to cycle through the lines. (see GlobalClock button for examples).' + nl +
+		'Results are stored as a string in the global variable: ' + g_dateFormats + nl +
+		'See the Date object in the DOpus scripting reference for full syntax.';
+
+	var tfDesc = 'Defines the arbitrary time format used in the DOpus Date.Format script function.' + nl +
+	'All text is inserted as-is into the first argument of the function. This overrides all settings under the "Time Format" group.' + nl +
+		'Example: T#MHH:mm:ss produces:' + nl +
+		'     Hour with leading zero (24-hour clock)' + nl +
+		'     Minutes with leading zero' + nl +
+		'     Seconds with leading zero (includes milliseconds if the special M flag is used)' + nl +
+		'See the Date object in the DOpus scripting reference for full syntax.';
+
+
+	var autoDesc = 'The startup state of the clock when DOpus starts. "Last state" restores the state from when the user has last run a command to toggle the clock status "On" or "Off" ';
+
+	AddConfig('24-hour time', true, "Set this to False to use a 12-hour AM/PM time format.", 'Time Format');
+	AddConfig('LiveTime show MS', false, 'Display milliseconds in "LiveTime" clock.', 'Time Format');
+
+	AddConfig('LiveTime tick MS', 500, 'LiveTime update interval in milliseconds (50–1000, default 500)', 'Behavior');
+	AddConfig('System notification sound', false, "Play a sound when notification is displayed.", 'Behavior');
+
+
+	AddConfig('Custom date formats', val, cdfDesc, 'Custom Formatters');
+	AddConfig('TimeClock format', "", tfDesc, 'Custom Formatters');
+	AddConfig('LiveTime format', "", tfDesc, 'Custom Formatters');
+	AddConfig('System notification title', "<:D#d. MMMM yyyy@C1:> (Week <:D#ww:>)", "Single line formatter. Same syntax as the custom date formats. <:arg1;;arg2@modifierX@modifierY:>", 'Custom Formatters');
+	AddConfig('System notification message', "<:D#dddd@C0:> - <:t;;nS:>", "Single line formatter. Same syntax as the custom date formats.  <:arg1;;arg2@modifierX@modifierY:>", 'Custom Formatters');
+
+	AddConfig('Auto start DateClock', DOpus.NewVector(2, 'Off', 'On', 'Last state'), autoDesc, 'Startup');
+	AddConfig('Auto start TimeClock', DOpus.NewVector(2, 'Off', 'On', 'Last state'), autoDesc, 'Startup');
+	AddConfig('Auto start LiveTime', DOpus.NewVector(2, 'Off', 'On', 'Last state'), autoDesc, 'Startup');
+
+	AddConfig('XLog', DOpus.NewVector(4, 'Exception', 'Error', 'Warning', 'Info', 'Normal', 'Trace', 'Dump', 'All'), 'Console output level. This script mostly outputs logs at Trace/Dump level', 'Logging');
+
+	function AddConfig(name, value, desc, group) {
+		initData.config[name] = value;
+		initData.config_desc(name) = desc;
+		initData.config_groups(name) = group;
+	}
+}
+function OnAddCommands(addCmdData) {
+	Log("OnAddCommands() event", "T", 1);
+	var cmd = addCmdData.AddCommand();
+	cmd.name = "GlobalClock";
+	cmd.method = "OnGlobalClock";
+	cmd.desc = "";
+	cmd.label = "GlobalClock";
+	cmd.template = "DATECLOCK/O[TOGGLE,ON,OFF],TIMECLOCK/O[TOGGLE,ON,OFF],LIVETIME/O[TOGGLE,ON,OFF],NOTIFY/S";
+	cmd.hide = false;
+	cmd.icon = "script";
+
+	// Uncomment when editting/debugging script to restart the clocks
+	(new LoadClockHelper()).AutoStartClocks();
+}
+
+// ============================================================
+// Directory Opus Event Handlers
+// ============================================================
+function OnStartup(e) {
+	Log("OnStartup() event", "T", 1);
+
+	var clocks = new LoadClockHelper();
+	if (clocks.AutoStartClocks())
+		DOpus.Create.Command.UpdateToggle();
+}
+function OnShutdown(e) {
+	Log("OnShutdown() event", "T", 1);
+	var clocks = new LoadClockHelper();
+	clocks.StopRunningClocks();
+}
+// Notifies a script it is being deleted through the Scripts management dialog
+function OnDeleteScript(e) {
+	Log("OnDeleteScript() event", "T", 1);
+	var clocks = new LoadClockHelper();
+	clocks.DeleteClocks();
+}
+function OnScriptConfigChange(cfg) {
+	Log("OnScriptConfigChange() event", "T", 1);
+
+	for (var i = 0; i < cfg.changed.length; i++) {
+		var name = cfg.changed[i];
+		Log("Configuration changed: " + name + " = " + Script.Config[name], "T");
+	}
+
+	var clocks = new LoadClockHelper();
+	var restart = clocks.StopRunningClocks();
+
+	if (restart.length > 0) {
+		Log("Restarting (" + restart.length + ") clocks", "T", 1);
+		for (var i = 0; i < restart.length; i++) restart[i].startClock();
+		DOpus.Create.Command.UpdateToggle();
+	}
+}
+function OnGlobalClock(scriptCmdData) {
+
+	Log("OnGlobalClock() event", "T", 1);
+
+	var clocks = new LoadClockHelper();
+	clocks = clocks.Items;
+
+	for (var i = 0; i < clocks.length; i++) {
+		var c = clocks[i];
+
+		//search for args by clock name.
+		var argName = c.name.toUpperCase();
+
+		if (scriptCmdData.Func.Args.got_arg[argName]) {
+
+			var argVal = scriptCmdData.Func.Args[argName].toUpperCase();
+			var running = c.isRunning();
+
+			Log("Command: " + argName + " = " + argVal, "T", 1);
+
+			if (argVal == "ON" || (argVal == "TOGGLE" && !running)) {
+
+				c.startClock(true);
+			}
+			else if (argVal == "OFF" || (argVal == "TOGGLE" && running)) {
+				c.stopClock(true);
+			}
+			Log("-", "T", -1);
+		}
+	}
+
+	DOpus.Create.Command.UpdateToggle();
+
+	if (scriptCmdData.Func.Args.got_arg["NOTIFY"]) {
+		var d = DOpus.Create.Date();
+		Log("Command: NOTIFY", "T", 1);
+
+		var title = "" + FormattersToText(d, BuildDateTimeFormatters(Script.Config['System notification title']));
+		var msg = "" + FormattersToText(d, BuildDateTimeFormatters(Script.Config['System notification message']));
+
+		Log("Title: " + title, "T");
+		Log("Message: " + msg, "T");
+
+		DOpus.Notify(title, msg, (Script.Config['System notification sound'] ? "" : "n")); //n = no sound
+	}
+
+}
+function OnScheduledTimer(e) {
+	Log("OnScheduledTimer() event, id: " + e.id, "D", 1);
+	var d = DOpus.Create.Date();
+	var err = true;
+
+	if (e.id === dateClockId) {
+		if (Scheduled_DateClock(d, e.id)) {
+			SetVar(DOpus, g_date, getDateClockFormat(d), false);
+			UpdateCustomDateFormats(d);
+			err = false;
+		}
+	}
+	else if (e.id === timeClockId) {
+		if (Scheduled_TimeClock(d, e.id)) {
+			SetVar(DOpus, g_time, getTimeClockFormat(d), false);
+			err = false;
+		}
+	}
+	if (err === true) {
+		var clocks = new LoadClockHelper();
+		var c = clocks.GetById(e.id);
+
+		if (c == null) {
+			Log("OnScheduledTimer() Failed to find clock with id: " + e.id, "X");
+			return;
+		}
+		Log('OnScheduledTimer() Failed setting timer: "' + c.name + '," id: ' + e.id, "X");
+		c.throwClock();
+	}
+
+	DOpus.Create.Command.UpdateToggle();
+}
+function OnPeriodicTimer(e) {
+	Log("OnPeriodicTimer() event, id: " + e.id, "D");
+	SetVar(DOpus, g_liveTime, getLiveTimeFormat(DOpus.Create.Date()), false);
+	DOpus.Create.Command.UpdateToggle();
+}
+
+// ============================================================
+// ClockData 
+// ============================================================
+function LoadClockHelper() {
+	Log("Loading ClockHelper class", "D", 1);
+	var _map = DOpus.Create.OrderedMap(
+		dateClockId, new ClockData({ id: dateClockId, name: "DateClock", g_var: g_date, start: StartDateClock, clockTick: Scheduled_DateClock, parseDateToOutput: getDateClockFormat, onOutputCallback: UpdateCustomDateFormats }),
+		timeClockId, new ClockData({ id: timeClockId, name: "TimeClock", g_var: g_time, start: StartTimeClock, clockTick: Scheduled_TimeClock, parseDateToOutput: getTimeClockFormat }),
+		liveTimeId, new ClockData({ id: liveTimeId, name: "LiveTime", g_var: g_liveTime, start: StartLiveTime, clockTick: function () { return true; }, parseDateToOutput: getLiveTimeFormat })
+	)
+	this.Items = (function () {
+		var arr = [];
+		for (var e = new Enumerator(_map); !e.atEnd(); e.moveNext()) {
+			var key = e.item();
+			var value = _map(key);
+			arr.push(value);
+		}
+		return arr;
+	})();
+	this.GetById = function (id) {
+		return _map(id);
+	}
+	this.DeleteClocks = function () {
+		Log("DeleteClocks()", "T", 1);
+		var clocks = this.Items;
+		for (var i = 0; i < clocks.length; i++)
+			clocks[i].stopClock(false);
+
+		DOpus.Vars.Delete("Script.GlobalClock.DateFormats.Idx");
+		Log("-", "T", -1)
+	}
+	this.StopRunningClocks = function () {
+		Log("StopRunningClocks()", "T", 1);
+		var stopped = DOpus.Create.Vector();
+		var clocks = this.Items;
+		for (var i = 0; i < clocks.length; i++) {
+			var c = clocks[i];
+			if (c.isRunning()) {
+				c.stopClock();
+				stopped.push_back(c);
+			}
+		}
+		Log("-", "T", -1);
+		return stopped;
+	}
+	this.AutoStartClocks = function () {
+		Log("AutoStartClocks()", "T", 1);
+
+		var toggleUpdate = false;
+		var clocks = this.Items;
+		for (var i = 0; i < clocks.length; i++) {
+
+			var c = clocks[i];
+
+			var varName = 'Auto start ' + c.name;
+			var config = Script.Config[varName];
+			var lastState = c.getLastUserState();
+
+			Log('"' + c.name + '" auto start configuration: "' + (config == 2 ? "Last state" : (config == 1 ? "On" : "Off")) + '"', "T", 1);
+			Log('Last clock state from user command: "' + (lastState ? "On" : "Off") + '"', "T", -1);
+			//1 = ON 2 = LastState
+			if (config == 1 || (config == 2 && lastState)) {
+
+				c.startClock();
+				toggleUpdate = true;
+			}
+
+		}
+
+		Log("-", "T", -1);
+
+		return toggleUpdate;
+	}
+
+	Log("-", "D", -1);
+}
+
+function ClockData(o) {
+	this.id = o.id;
+	this.name = o.name;
+	var self = this;
+
+	var globOutputName = o.g_var;
+	var lastStateName = globOutputName + ".LastState";
+
+	var startClockTimer = o.start;
+	var parseDateToOutput = o.parseDateToOutput;
+	var onOutputCallback = o.onOutputCallback;
+
+	this.dateTime = DOpus.Create.Date();
+
+	this.startClock = function (updateLastState) {
+		Log('Starting: "' + this.name + '",  id: ' + this.id, "T");
+
+		this.dateTime.Reset();
+		if (startClockTimer(this.dateTime, this.id)) {
+			updateOutput();
+			if (updateLastState) setLastUserState(true);
+		}
+		else {
+			Log('Failed to start clock: "' + this.name + '"', "X");
+			this.throwClock();
+		}
+	};
+	// Currently not using this method of this class, to update clock outputs on scheduled and timed events, because we prefer speed. (The stateless way DOpus script addin engine works requires reloading of objects on each new event)
+	// Use like so in the timed event to update outputs with the new time: (new LoadClockHelper()).onClockTick();
+	this.onClockTick = function () {
+		this.dateTime.Reset();
+		if (o.clockTick(this.dateTime, this.id)) {
+			updateOutput();
+		}
+		else {
+			Log('onClockTick() Failed setting timer: "' + this.name + '", id: ' + this.id, "X");
+			this.throwClock();
+		}
+	};
+	this.stopClock = function (updateLastState) {
+		Log('Stopping clock: "' + this.name + '"', "T", 1);
+
+		if (!resetClock())
+			Log('Clock is already stopped', "T");
+
+		if (updateLastState) setLastUserState(false);
+
+		Log('-', "T", -1);
+	};
+	this.throwClock = function () {
+		Log('Throwing clock: "' + this.name + '"', "E");
+		resetClock();
+	};
+	this.isRunning = function () {
+		return DOpus.Vars.Exists(globOutputName);
+	};
+	this.getLastUserState = function () {
+		return Script.Vars.Exists(lastStateName);
+	};
+	//privates
+	function updateOutput() {
+		Log('Updating output variable for clock: "' + self.name + '"', "T");
+		SetVar(DOpus, globOutputName, parseDateToOutput(self.dateTime), false);
+		if (onOutputCallback)
+			onOutputCallback(self.dateTime);
+	};
+	function resetClock() {
+		var ret = DOpus.KillTimer(self.id) | DOpus.Vars.Exists(globOutputName);
+		DOpus.Vars.Delete(globOutputName);
+		if (onOutputCallback) onOutputCallback();
+		return ret;
+	};
+	function setLastUserState(state) {
+		Log('Updating last clock state by user command for: "' + self.name + '", to: "' + (state ? "On" : "Off") + '"', "T");
+		if (state)
+			SetVar(Script, lastStateName, true, true);
+		else
+			Script.Vars.Delete(lastStateName);
+	};
+
+}
+
+// ============================================================
+// Date/Time Scheduling
+// ============================================================
+function StartDateClock(d, id) {
+	var nt = d.Clone();
+	nt.hour = 0; nt.min = 0; nt.sec = 0;
+	nt.Add(1, "d");
+	if (nt.GetTime() - d.GetTime() <= 1000) nt.Add(1, "s");
+	return DOpus.SetScheduledTimer(id, nt);
+}
+function StartTimeClock(d, id) {
+	var nt = d.Clone();
+	var extraSecs = (nt.ms >= 500) ? 2 : 1;
+	nt.Add((59 - nt.sec) + extraSecs, "s");
+	return DOpus.SetScheduledTimer(id, nt);
+}
+function StartLiveTime(d, id) {
+	var tick = CheckRange(50, 1000, Script.Config["LiveTime tick MS"], 500);
+	Log('LiveTime tick MS: ' + tick, "T");
+	return DOpus.SetTimer(id, tick);
+}
+function Scheduled_DateClock(d, id) {
+	var nt = d.Clone();
+	nt.sec = 0; nt.ms = 0;
+	nt.Add(1, "d");
+	var ret = DOpus.SetScheduledTimer(id, nt);
+	if (ret)
+		Log('Scheduled "DateClock," id: ' + id, "D");
+	return ret;
+}
+function Scheduled_TimeClock(d, id) {
+	var nt = d.Clone();
+	nt.sec = 0; nt.ms = 0;
+	nt.Add(1, "m");
+
+	var ret = DOpus.SetScheduledTimer(id, nt);
+	if (ret)
+		Log('Scheduled "TimeClock," id: ' + id, "D");
+	return ret;
+}
+function getDateClockFormat(d) {
+	return d.Format("d", "n")
+}
+function getTimeClockFormat(d) {
+	var f = Script.Config["TimeClock format"];
+	if (f.length != 0)
+		return d.Format(f);
+
+	if (Script.Config["24-hour time"])
+		return d.Format("T#HH:mm");
+
+	f = formatHoursAMPM(d.hour);
+	return f[0] + ":" + zfill(d.min, 2) + " " + f[1];
+}
+function getLiveTimeFormat(d) {
+	var f = Script.Config["LiveTime format"];
+	if (f.length != 0)
+		return d.Format(f);
+
+	f = d.hour, suffix = "";
+	if (Script.Config["LiveTime show MS"])
+		suffix = "." + zfill(d.ms, 3);
+
+	if (!Script.Config["24-hour time"]) {
+		var hs = formatHoursAMPM(f);
+		f = hs[0];
+		suffix += " " + hs[1];
+	} else f = zfill(f, 2);
+
+	return f + ":" + zfill(d.min, 2) + ":" + zfill(d.sec, 2) + suffix;
+}
+// ============================================================
+// Utilities
+// ============================================================
+function zfill(num, size) {
+	var s = num + "";
+	while (s.length < size) s = "0" + s;
+	return s;
+}
+
+function formatHoursAMPM(hours) {
+	var ampm = hours >= 12 ? 'PM' : 'AM';
+	hours = hours % 12 || 12;
+	return [hours, ampm];
+}
+function SetVar(scope, name, val, persist) {
+	scope.Vars.Set(name, val);
+	scope.Vars(name).persist = persist;
+}
+
+function CheckRange(min, max, val, def) {
+	var parsed = parseInt(val);
+	return (isNaN(parsed) || parsed < min || parsed > max) ? def : parsed;
+}
+
+
+function UpdateCustomDateFormats(d) {
+
+	Log("UpdateCustomDateFormats()", "D", 1);
+
+	if (!d) {
+		if (DOpus.Vars.Exists(g_dateFormats)) {
+			Log("Deleting old DateFormatters output variable", "D");
+			DOpus.Vars.Delete(g_dateFormats);
+		}
+
+		Log("-", "D", -1);
+		return;
+	}
+
+	var formats = Script.Config["Custom date formats"];
+	if (!formats) {
+		Log('No formats in Script Config: "Custom date formats"', "D", -1);
+		return [];
+	}
+
+
+	var formatters = BuildDateTimeFormatters(formats);
+	var textLines = FormattersToText(d, formatters);
+
+	Log("Updating custom date formats output.", "D");
+	SetVar(DOpus, g_dateFormats, textLines, false);
+
+	Log("-", "d", -1);
+}
+
+function BuildDateTimeFormatters(formats) {
+
+	Log("BuildDateTimeFormatters()", "D", 1);
+
+	var lines = formats.split(/\r?\n/);
+	var dFormatters = DOpus.Create.Vector();
+
+	Log('Total formats to build: ' + lines.length, "D", 1);
+
+	// matches <: ... :>
+	var regex = /<:([\s\S]*?):>/g;
+	var str = "";
+	for (var i = 0; i < lines.length; i++) {
+		var line = Trim(lines[i]);
+		if (!line.length) continue;
+
+		Log("Parsing line " + (i + 1) + ": " + line, "D");
+
+		var partFuncs = DOpus.Create.Vector();
+		var lastIndex = 0;
+		var match;
+
+		while ((match = regex.exec(line)) !== null) {
+
+			var before = line.substring(lastIndex, match.index);
+			if (before.length)
+				partFuncs.push_back({ type: "text", args: [before], modifiers: [] });
+
+			var inner = Trim(match[1]);
+			var obj = ParseFormatterTag(inner);
+			partFuncs.push_back(obj);
+
+			lastIndex = regex.lastIndex;
+		}
+
+		if (lastIndex < line.length) {
+			var tail = line.substring(lastIndex);
+			if (tail.length)
+				partFuncs.push_back({ type: "text", args: [tail], modifiers: [] });
+		}
+		str = "";
+		for (var z = 0; z < partFuncs.length; z++) {
+			str += JSON.stringify(partFuncs[z], null);
+		}
+		Log("Parts: " + str, "D");
+		dFormatters.push_back(partFuncs);
+	}
+	Log("-", "D", -2);
+	return dFormatters;
+}
+function FormattersToText(d, formatters) {
+	if (!formatters || !formatters.length) return;
+
+	Log("FormattersToText()", "D", 1);
+	var textLines = "";
+	Log("Will run (" + formatters.length + ") formatters from DateTime: " + d.Format("", "nSM"), "D", 1);
+	for (var i = 0; i < formatters.count; i++) {
+
+		var parts = formatters[i];
+		var str = "";
+
+		for (var j = 0; j < parts.length; j++) {
+			var obj = parts(j);
+			var out = "";
+
+			switch (obj.type) {
+				case "single":
+					out = d.Format(obj.args[0] || "");
+					break;
+				case "dual":
+					out = d.Format(obj.args[0] || "", obj.args[1] || "");
+					break;
+				case "text":
+					out = obj.args[0] || "";
+					break;
+				default:
+					out = "";
+			}
+
+			if (obj.modifiers && obj.modifiers.length)
+				out = ApplyModifiers(out, obj.modifiers);
+
+			str += out;
+		}
+
+		if (textLines.length === 0) textLines = str;
+		else textLines += "\n" + str;
+
+		Log(str, "d");
+
+	}
+	Log("-", "d", -2);
+
+	return textLines;
+}
+function ParseFormatterTag(inner) {
+	var rawParts = inner.split("@");
+	var base = Trim(rawParts[0]);
+	var modifiers = [];
+
+	for (var i = 1; i < rawParts.length; i++) {
+		var m = Trim(rawParts[i]);
+		if (m.length) modifiers.push(m);
+	}
+
+	// Dual-arg format (arg1;;arg2)
+	if (base.indexOf(";;") !== -1) {
+		var args = base.split(";;");
+		var arg1 = (args.length > 0) ? Trim(args[0]) : "";
+		var arg2 = (args.length > 1) ? Trim(args[1]) : "";
+		return { type: "dual", args: [arg1, arg2], modifiers: modifiers };
+	}
+	// Single-arg format (D#, T#, etc.)
+	else {
+		return { type: "single", args: [base], modifiers: modifiers };
+	}
+}
+
+function ApplyModifiers(str, mods) {
+
+	// Limit length (Lx)
+	for (var i = 0; i < mods.length; i++) {
+		var m = mods[i];
+		if (/^L\d+$/.test(m)) {
+			var n = parseInt(m.substr(1), 10);
+			if (n > 0 && str.length > n)
+				str = str.substring(0, n);
+		}
+	}
+	// Apply casings
+	for (var i = 0; i < mods.length; i++) {
+		var m = mods[i].toUpperCase();
+
+
+		if (m === "C0") {
+			// Capitalize first alphabetic char/word
+			for (var j = 0; j < str.length; j++) {
+				var ch = str.charAt(j);
+				if (IsLetter(ch)) {
+					str = str.substring(0, j) +
+						ch.toUpperCase() +
+						str.substring(j + 1);
+					break;
+				}
+			}
+		}
+		else if (m === "C1") {
+			// Capitalize all alphabetic words
+			var result = "";
+			var inWord = false;
+			for (var j = 0; j < str.length; j++) {
+				var ch = str.charAt(j);
+				if (IsLetter(ch)) {
+					if (!inWord) {
+						ch = ch.toUpperCase();
+						inWord = true;
+					}
+				} else {
+					inWord = false;
+				}
+				result += ch;
+			}
+			str = result;
+		}
+		else if (m === "CU") {
+			str = str.toUpperCase();
+		}
+	}
+
+	return str;
+}
+// Check if char is a letter for old javascript engine
+function IsLetter(ch) {
+	if (!ch || ch.length === 0) return false;
+	// If upper/lower versions differ, it's a letter
+	return ch.toUpperCase() !== ch.toLowerCase();
+}
+function Trim(s) {
+	return s.replace(/^\s+|\s+$/g, "");
+}
+//https://resource.dopus.com/t/helper-xlog-versatile-logging-approach-for-do-scripting/20663
+//MUTE ALL SCRIPTS AND OVERRRIDE THE GLOBAL SETTING  XLogForce=true 
+function Log(text, lvl, ind) { //XLog v0.45 (allow early usage, but warn (Script-object cannot be typeof'ed))
+	var u, lvs = { o: 0, x: 1, e: 2, w: 3, i: 4, n: 5, t: 6, d: 7, a: 8 }, i = ["", "X", "E", "W", "I", "", "", "", ""], d = DOpus;
+	if (typeof XLog == (u = "undefined")) { var v = d.Vars; if (v.Exists("XLog") && typeof XLogForce == u) { XLog = v.Get("XLog"); } }
+	if (typeof XLog == u) { try { var c = Script.Config; if (typeof c.XLog != u) { XLog = c.XLog; } } catch (e) { d.Output("XLog: Early call, log-level=all.", 1); XLog = 8; } }
+	if (typeof XLog == u) { XLog = "normal"; } if (XLog.paused === undefined) {
+		if (XLog === true) var L = 5; else if (!isNaN(parseInt(XLog, 10)))
+			var L = XLog * 1; else var L = lvs[("" + XLog).toLowerCase().substring(0, 1)]; XLog = { paused: false, I: 0, L: L };
+	}
+	lvl = (lvl == undefined ? 5 : lvs[lvl.substring(0, 1).toLowerCase()]);
+	if (!(lvl && XLog.L && !XLog.paused && (lvl <= XLog.L))) { return; } var pad = (XLog.I == 0 ? "" : new Array(XLog.I + 1).join("    "));
+	if (i[lvl]) pad = i[lvl] + (!pad ? "   " : pad.substring(1)); if (text != "-") {
+		if (d.Version.AtLeast("11.13.1"))
+			d.Output(pad + text, ((lvl == 1 || lvl == 2) ? 1 : 0)); else d.Output(pad + text);
+	}
+	ind = (ind !== undefined ? ind : 0); XLog.I += ind; if (XLog.I < 0) throw new Error("XLog indent went sub-zero.");
+}
+
